@@ -1,9 +1,21 @@
 #include <am.h>
 #include <klib.h>
 #include <rtthread.h>
+#define CONFIG_ISA_riscv
 
 static Context* ev_handler(Event e, Context *c) {
   switch (e.event) {
+    case EVENT_YIELD:
+      #ifdef CONFIG_ISA_riscv
+      if(c->gpr[12] == 0){
+        c = *(Context**) c->gpr[10];
+      }else if(c->gpr[12] == 1){
+        *(Context**)c->gpr[10] = c;
+        c = *(Context**) c->gpr[11];
+      }
+      break;
+
+      #endif
     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
   }
   return c;
@@ -14,11 +26,21 @@ void __am_cte_init() {
 }
 
 void rt_hw_context_switch_to(rt_ubase_t to) {
+  #ifdef CONFIG_ISA_riscv
+  asm volatile("li a2, 0");
+  yield();
+  #else 
   assert(0);
+  #endif
 }
 
 void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+  #ifdef CONFIG_ISA_riscv
+  asm volatile("li a2, 1");
+  yield();
+  #else 
   assert(0);
+  #endif
 }
 
 void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
