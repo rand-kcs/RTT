@@ -1,7 +1,7 @@
 #include <am.h>
 #include <klib.h>
 #include <rtthread.h>
-#define CONFIG_ISA_riscv
+//#define RISCV_ONLY
 
 static Context* ev_handler(Event e, Context *c) {
   switch (e.event) {
@@ -14,8 +14,19 @@ static Context* ev_handler(Event e, Context *c) {
         c = *(Context**) c->gpr[11];
       }
       break;
-
       #endif
+      rt_thread_t current = rt_thread_self();
+      rt_ubase_t* data = (rt_ubase_t*)(current->user_data);
+      if(data[0] == 0){
+        c = *(Context**) data[1];
+      }else if(data[0] == 1){
+        *(Context**)data[1] = c;
+        c = *(Context**) data[2];
+      }else{
+        printf("flag: %08x", data[0]);
+        assert(0);
+      }
+      break;
     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
   }
   return c;
@@ -26,21 +37,34 @@ void __am_cte_init() {
 }
 
 void rt_hw_context_switch_to(rt_ubase_t to) {
-  #ifdef CONFIG_ISA_riscv
+  #ifdef RISCV_ONLY
   asm volatile("li a2, 0");
   yield();
-  #else 
-  assert(0);
   #endif
+
+  rt_ubase_t data[2] = {0, to};
+
+  rt_thread_t current = rt_thread_self();
+  rt_ubase_t tmp_data = current->user_data;
+  current->user_data = (rt_ubase_t)data;
+  yield();
+  current->user_data = tmp_data;
 }
 
 void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
-  #ifdef CONFIG_ISA_riscv
+  #ifdef RISCV_ONLY
   asm volatile("li a2, 1");
   yield();
-  #else 
-  assert(0);
   #endif
+
+  rt_ubase_t data[3] = {1, from, to};
+
+  rt_thread_t current = rt_thread_self();
+  rt_ubase_t tmp_data = current->user_data;
+  current->user_data = (rt_ubase_t)data;
+  yield();
+  current->user_data = tmp_data;
+
 }
 
 void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
